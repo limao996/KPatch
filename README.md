@@ -1,7 +1,9 @@
 # KPatch
+
 KPatch是基于Kotlin的.9patch图片绘制库。
 
 ## 特性
+
 - [x]解析.9patch图片
 - [x]使用普通图片时手动传入配置
 - [x]在右、下侧使用红色像素点标记裁剪边界
@@ -13,4 +15,5 @@ KPatch是基于Kotlin的.9patch图片绘制库。
 - [ ]具有完整支持的编辑器
 
 ## 截图
-![](https://github.com/limao996/KPatch/blob/master/assets/1.jpg)
+
+<img src="https://github.com/limao996/KPatch/blob/master/assets/1.jpg" alt=""/>
