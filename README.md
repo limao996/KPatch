@@ -13,4 +13,4 @@ KPatch是基于Kotlin的.9patch图片绘制库。
 - [ ]具有完整支持的编辑器
 
 ## 截图
-![](assets/1.png)
+![](https://github.com/limao996/KPatch/blob/master/assets/1.jpg)
