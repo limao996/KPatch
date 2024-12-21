@@ -5,6 +5,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
+import android.util.Log
 import android.util.Size
 import androidx.core.graphics.withClip
 import kotlin.collections.List
@@ -27,7 +28,7 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks) {
         canvas.withClip(bounds) {
             var repeatX = flags and type != 0
             var repeatY = repeatX
-            if (type == REPEAT_INNER) {
+            if (type == TYPE_INNER) {
                 repeatX = flags and REPEAT_INNER_X != 0
                 repeatY = flags and REPEAT_INNER_Y != 0
             }
@@ -76,19 +77,20 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks) {
             val chunks = chunks.fill(bounds, scale)
             for (chunk in chunks) {
                 when (chunk.type) {
-                    REPEAT_INNER, REPEAT_OUTER_X, REPEAT_OUTER_Y -> repeatChunk(
+                    TYPE_INNER, REPEAT_OUTER_X, REPEAT_OUTER_Y -> repeatChunk(
                         canvas, chunk.dst!!, chunk.src, scale, chunk.type, flags, paint
                     )
 
-                    REPEAT_FIXED -> fillChunk(
+                    TYPE_FIXED -> fillChunk(
                         canvas, chunk.dst!!, chunk.src, paint
                     )
                 }
                 if (debug) canvas.drawRect(chunk.dst!!, Paint().apply {
                     color = when (chunk.type) {
-                        REPEAT_INNER -> Color.BLUE
+                        TYPE_INNER -> Color.BLUE
                         REPEAT_OUTER_X -> Color.GREEN
                         REPEAT_OUTER_Y -> Color.YELLOW
+                        TYPE_FIXED -> Color.TRANSPARENT
                         else -> Color.TRANSPARENT
                     }
                     alpha = 80
@@ -112,26 +114,47 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks) {
             val bounds = Rect(1, 1, width - 2, height - 2)
             val splitX = ArrayList<IntRange>(1)
             val splitY = ArrayList<IntRange>(1)
+            val delX = ArrayList<IntRange>(1)
+            val delY = ArrayList<IntRange>(1)
             val padding = Rect(bounds.left, bounds.top, bounds.right, bounds.bottom)
 
             // top
             var pixels = IntArray(width)
             bitmap.getPixels(pixels, 0, width, 0, 0, width, 1)
             var index = -1
-            var first: Int? = null
+            var delFirst: Int? = null
+            var splitFirst: Int? = null
             for (pixel in pixels) {
                 index++
                 when (pixel) {
                     Color.TRANSPARENT -> {
-                        if (first != null) {
-                            splitX.add(first..index - 1)
-                            first = null
+                        if (splitFirst != null) {
+                            splitX.add(splitFirst..index - 1)
+                            splitFirst = null
+                        }
+                        if (delFirst != null) {
+                            delX.add(delFirst..index - 1)
+                            delFirst = null
+                        }
+                    }
+
+                    Color.RED -> {
+                        if (splitFirst != null) {
+                            splitX.add(splitFirst..index - 1)
+                            splitFirst = null
+                        }
+                        if (delFirst == null) {
+                            delFirst = index
                         }
                     }
 
                     Color.BLACK -> {
-                        if (first == null) {
-                            first = index
+                        if (splitFirst == null) {
+                            splitFirst = index
+                        }
+                        if (delFirst != null) {
+                            delX.add(delFirst..index - 1)
+                            delFirst = null
                         }
                     }
 
@@ -175,20 +198,39 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks) {
             pixels = IntArray(height)
             bitmap.getPixels(pixels, 0, 1, 0, 0, 1, height)
             index = -1
-            first = null
+            splitFirst = null
+            delFirst = null
             for (pixel in pixels) {
                 index++
                 when (pixel) {
                     Color.TRANSPARENT -> {
-                        if (first != null) {
-                            splitY.add(first..index - 1)
-                            first = null
+                        if (splitFirst != null) {
+                            splitY.add(splitFirst..index - 1)
+                            splitFirst = null
+                        }
+                        if (delFirst != null) {
+                            delY.add(delFirst..index - 1)
+                            delFirst = null
+                        }
+                    }
+
+                    Color.RED -> {
+                        if (splitFirst != null) {
+                            splitY.add(splitFirst..index - 1)
+                            splitFirst = null
+                        }
+                        if (delFirst == null) {
+                            delFirst = index
                         }
                     }
 
                     Color.BLACK -> {
-                        if (first == null) {
-                            first = index
+                        if (splitFirst == null) {
+                            splitFirst = index
+                        }
+                        if (delFirst != null) {
+                            delY.add(delFirst..index - 1)
+                            delFirst = null
                         }
                     }
 
@@ -235,6 +277,8 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks) {
                 bounds = bounds,
                 splitX = splitX,
                 splitY = splitY,
+                delX = delX,
+                delY = delY,
                 padding = padding,
             )
         }
@@ -242,21 +286,26 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks) {
         const val REPEAT_INNER_X = 1
         const val REPEAT_INNER_Y = 1 shl 1
         const val REPEAT_INNER_BOTH = REPEAT_INNER_X or REPEAT_INNER_Y
-        const val REPEAT_INNER = REPEAT_INNER_BOTH
+        const val TYPE_INNER = REPEAT_INNER_BOTH
         const val REPEAT_INNER_NONE = 0
         const val REPEAT_OUTER_X = 1 shl 2
         const val REPEAT_OUTER_Y = 1 shl 3
+        const val TYPE_OUTER_X = REPEAT_OUTER_X
+        const val TYPE_OUTER_Y = REPEAT_OUTER_Y
         const val REPEAT_OUTER_ALL = REPEAT_OUTER_X or REPEAT_OUTER_Y
         const val REPEAT_OUTER_NONE = 0
-        const val REPEAT_FIXED = 0
+        const val TYPE_FIXED = 1 shl 4
+        const val TYPE_DEL = 1 shl 5
     }
 }
 
 
 data class KPatchChunks(
     val bounds: Rect, // 素材源区域
-    val splitX: List<IntRange>, // X轴切割线 范围内部为可拉伸区域
-    val splitY: List<IntRange>, // Y轴切割线 范围内部为可拉伸区域
+    val splitX: List<IntRange>, // X轴切割范围 范围内部为可拉伸区域
+    val splitY: List<IntRange>, // Y轴切割范围 范围内部为可拉伸区域
+    val delX: List<IntRange> = emptyList(), // X轴删除范围 范围内部为删除区域
+    val delY: List<IntRange> = emptyList(), // Y轴删除范围 范围内部为删除区域
     val padding: Rect, // 内容边距 (这里直接忽略)
 ) {
     data class Chunk(
@@ -265,45 +314,59 @@ data class KPatchChunks(
         var dst: Rect? = null, // 填充区域
     )
 
-    fun split(): Triple<List<Chunk>, List<Pair<IntRange, Boolean>>, List<Pair<IntRange, Boolean>>> {
+    fun split(): Triple<List<Chunk>, List<Pair<IntRange, Int>>, List<Pair<IntRange, Int>>> {
         val chunks = ArrayList<Chunk>()
-        val lineXList = ArrayList<Pair<IntRange, Boolean>>()
-        val lineYList = ArrayList<Pair<IntRange, Boolean>>()
+        val lineXList = ArrayList<Pair<IntRange, Int>>()
+        val lineYList = ArrayList<Pair<IntRange, Int>>()
+        val lineX = ArrayList<Pair<IntRange, Int>>()
+        val lineY = ArrayList<Pair<IntRange, Int>>()
+
+        for (line in splitX) lineX.add(line to 1)
+        for (line in splitY) lineY.add(line to 1)
+        for (line in delX) lineX.add(line to -1)
+        for (line in delY) lineY.add(line to -1)
+        lineX.sortBy { it.first.first }
+        lineY.sortBy { it.first.first }
 
         var last = bounds.left
-        for (line in splitX) {
+        for (pair in lineX) {
+            val (line, type) = pair
             if (last < line.first) {
-                lineXList.add(last..line.first to false)
+                lineXList.add(last..line.first to 0)
             }
-            lineXList.add(line to true)
+            lineXList.add(line to type)
             last = line.last //+ 1
         }
         if (last < bounds.right) {
-            lineXList.add(last..bounds.right to false)
+            lineXList.add(last..bounds.right to 0)
         }
 
         last = bounds.top
-        for (line in splitY) {
+        for (pair in lineY) {
+            val (line, type) = pair
             if (last < line.first) {
-                lineYList.add(last..line.first to false)
+                lineYList.add(last..line.first to 0)
             }
-            lineYList.add(line to true)
+            lineYList.add(line to type)
             last = line.last //+ 1
         }
         if (last < bounds.bottom) {
-            lineYList.add(last..bounds.bottom to false)
+            lineYList.add(last..bounds.bottom to 0)
         }
+
         for (lineX in lineXList) {
             for (lineY in lineYList) {
+                if (lineX.second == -1 || lineY.second == -1) continue
                 chunks.add(
                     Chunk(
                         src = Rect(
                             lineX.first.first, lineY.first.first, lineX.first.last, lineY.first.last
                         ), type = when {
-                            lineX.second && lineY.second -> KPatch.REPEAT_INNER
-                            lineX.second -> KPatch.REPEAT_OUTER_X
-                            lineY.second -> KPatch.REPEAT_OUTER_Y
-                            else -> KPatch.REPEAT_FIXED
+                            lineX.second == 1 && lineY.second == 1 -> KPatch.TYPE_INNER
+                            lineX.second == 1 -> KPatch.REPEAT_OUTER_X
+                            lineY.second == 1 -> KPatch.REPEAT_OUTER_Y
+                            lineY.second == 0 -> KPatch.TYPE_FIXED
+                            else -> KPatch.TYPE_DEL
                         }
                     )
                 )
@@ -325,19 +388,21 @@ data class KPatchChunks(
         val dstSizeX = HashMap<IntRange, Int>()
         for (pair in lineX) {
             val (line, type) = pair
-            if (!type) {
+            if (type != 1) {
                 val size = line.last - line.first
                 val dstSize = (size * scale).toInt()
                 srcFixedXSize += size
-                dstFixedXSize += dstSize
-                dstSizeX[line] = dstSize
+                if (type == 0) {
+                    dstFixedXSize += dstSize
+                    dstSizeX[line] = dstSize
+                }
             }
         }
         val srcRepeatXSize = this.bounds.width() - srcFixedXSize
         val dstRepeatXSize = bounds.width() - dstFixedXSize
         for (pair in lineX) {
             val (line, type) = pair
-            if (type) {
+            if (type == 1) {
                 val size = line.last - line.first
                 val weight = size.toDouble() / srcRepeatXSize
                 val dstSize = (dstRepeatXSize * weight).toInt()
@@ -355,19 +420,21 @@ data class KPatchChunks(
         val dstSizeY = HashMap<IntRange, Int>()
         for (pair in lineY) {
             val (line, type) = pair
-            if (!type) {
+            if (type != 1) {
                 val size = line.last - line.first
                 val dstSize = (size * scale).toInt()
                 srcFixedYSize += size
-                dstFixedYSize += dstSize
-                dstSizeY[line] = dstSize
+                if (type == 0) {
+                    dstFixedYSize += dstSize
+                    dstSizeY[line] = dstSize
+                }
             }
         }
         val srcRepeatYSize = this.bounds.height() - srcFixedYSize
         val dstRepeatYSize = bounds.height() - dstFixedYSize
         for (pair in lineY) {
             val (line, type) = pair
-            if (type) {
+            if (type == 1) {
                 val size = line.last - line.first
                 val weight = size.toDouble() / srcRepeatYSize
                 val dstSize = (dstRepeatYSize * weight).toInt()
@@ -412,4 +479,9 @@ fun Canvas.drawKPatch(
         debug,
         paint,
     )
+}
+
+
+private fun log(vararg msg: Any?) {
+    Log.i("KPatch-Log", msg.joinToString("\t"))
 }
