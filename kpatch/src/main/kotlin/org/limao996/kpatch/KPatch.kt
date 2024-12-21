@@ -10,6 +10,7 @@ import android.util.Size
 import androidx.core.graphics.withClip
 import kotlin.collections.List
 import kotlin.math.ceil
+import kotlin.math.log
 import kotlin.ranges.IntRange
 
 class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean = false) {
@@ -106,24 +107,54 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
     }
 
     fun export(paint: Paint? = null): Bitmap {
-        var width = bitmap.width
-        var height = bitmap.height
-        if (!isPatch) {
-            width += 2
-            height += 2
-        }
+        val offset = if (isPatch) 0 else 1
+        var width = bitmap.width + (offset * 2)
+        var height = bitmap.height + (offset * 2)
         val newBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(newBitmap)
-        val src = Rect(1, 1, width - 1, height - 1)
-        val dst = Rect(1, 1, width - 1, height - 1)
-        if (!isPatch) {
-            src.set(0, 0, width - 2, height - 2)
-        }
+        val src = Rect(offset, offset, width - 1 - offset, height - 1 - offset)
+        val dst = Rect(offset, offset, width - 1 - offset, height - 1 - offset)
         canvas.drawBitmap(bitmap, src, dst, paint)
 
+        // 边界
         val bounds = Rect(chunks.bounds)
-        if (!isPatch) bounds.offset(1, 1)
-        //newBitmap.setPixel()
+        bounds.offset(offset, offset)
+        newBitmap.setPixel(bounds.left, height - 1, Color.RED)
+        newBitmap.setPixel(bounds.right, height - 1, Color.RED)
+        newBitmap.setPixel(width - 1, bounds.top, Color.RED)
+        newBitmap.setPixel(width - 1, bounds.bottom, Color.RED)
+
+        // 切割
+        for (line in chunks.splitX) {
+            val start = line.first + offset
+            val end = line.last + offset
+            for (pos in start..end) newBitmap.setPixel(pos, 0, Color.BLACK)
+        }
+        for (line in chunks.splitY) {
+            val start = line.first + offset
+            val end = line.last + offset
+            for (pos in start..end) newBitmap.setPixel(0, pos, Color.BLACK)
+        }
+
+        // 删除
+        for (line in chunks.delX) {
+            val start = line.first + offset
+            val end = line.last + offset
+            for (pos in start..end) newBitmap.setPixel(pos, 0, Color.RED)
+        }
+        for (line in chunks.delY) {
+            val start = line.first + offset
+            val end = line.last + offset
+            for (pos in start..end) newBitmap.setPixel(0, pos, Color.RED)
+        }
+
+        // 边距
+        val padding = Rect(chunks.padding)
+        padding.offset(offset, offset)
+        for (pos in padding.left..padding.right) newBitmap.setPixel(pos, height - 1, Color.BLACK)
+
+        for (pos in padding.top..padding.bottom) newBitmap.setPixel(width - 1, pos, Color.BLACK)
+
 
         return newBitmap
     }
@@ -504,7 +535,6 @@ fun Canvas.drawKPatch(
     )
 }
 
-
-private fun log(vararg msg: Any?) {
+fun log(vararg msg: Any?) {
     Log.i("KPatch-Log", msg.joinToString("\t"))
 }

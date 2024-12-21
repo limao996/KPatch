@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import org.limao996.kpatch.KPatch
 import org.limao996.kpatch.KPatchChunks
 import org.limao996.kpatch.drawKPatch
+import kotlin.math.log
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,21 +39,25 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // 加载.9图片
-        // val bitmap = BitmapFactory.decodeStream(assets.open("a.9.png"))
-        // val kPatch = KPatch(bitmap) // 自动解析属性
+        val bitmap = BitmapFactory.decodeStream(assets.open("a.9.png"))
+        val kPatch = KPatch(bitmap) // 自动解析属性
 
-        //*
+        /*
         // 加载普通图片
         val bitmap = BitmapFactory.decodeStream(assets.open("a.png"))
         val kPatch = KPatch(
             bitmap, KPatchChunks(
                 bounds = Rect(0, 0, 499, 749),
-                splitX = listOf(59..114, 388..439),
-                splitY = listOf(87..680),
-                padding = Rect(42, 78, 458, 705)
+                splitX = listOf(58..113, 387..438),
+                splitY = listOf(86..679),
+                delX = listOf(0..30),
+                delY = listOf(0..30),
+                padding = Rect(41, 77, 457, 704)
             )
         ) // 手动标注属性
-        // */
+        */
+
+        // val patchBitmap = kPatch.export() // 导出.9图片
 
         setContent {
             MaterialTheme {
@@ -115,7 +120,7 @@ class MainActivity : ComponentActivity() {
                                 Text("缩放：" + (scale.doubleValue * 100).toInt() / 100f)
                                 Slider(scale.doubleValue.toFloat(), {
                                     scale.doubleValue = it.toDouble()
-                                }, Modifier.width(300.dp), valueRange = 0.5f..15f, steps = 50)
+                                }, valueRange = 0.3f..3f)
                             }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -140,6 +145,7 @@ class MainActivity : ComponentActivity() {
                                 Modifier.fillMaxSize()
                             ) {
                                 drawIntoCanvas {
+                                    it.nativeCanvas.drawBitmap(kPatch.bitmap, 0f, 0f, null)
                                     it.nativeCanvas.drawKPatch(
                                         kPatch = kPatch,
                                         bounds = Rect(
@@ -158,3 +164,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
