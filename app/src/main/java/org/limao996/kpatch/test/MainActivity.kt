@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
 import org.limao996.kpatch.KPatch
+import org.limao996.kpatch.KPatchChunks
 import org.limao996.kpatch.drawKPatch
 
 class MainActivity : ComponentActivity() {
@@ -37,10 +38,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         // 加载.9图片
-        val bitmap = BitmapFactory.decodeStream(assets.open("a.9.png"))
-        val kPatch = KPatch(bitmap) // 自动解析属性
+        // val bitmap = BitmapFactory.decodeStream(assets.open("a.9.png"))
+        // val kPatch = KPatch(bitmap) // 自动解析属性
 
-        /*
+        //*
         // 加载普通图片
         val bitmap = BitmapFactory.decodeStream(assets.open("a.png"))
         val kPatch = KPatch(
@@ -51,7 +52,7 @@ class MainActivity : ComponentActivity() {
                 padding = Rect(42, 78, 458, 705)
             )
         ) // 手动标注属性
-        */
+        // */
 
         setContent {
             MaterialTheme {

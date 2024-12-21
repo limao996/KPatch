@@ -12,9 +12,9 @@ import kotlin.collections.List
 import kotlin.math.ceil
 import kotlin.ranges.IntRange
 
-class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks) {
+class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean = false) {
 
-    constructor(bitmap: Bitmap) : this(bitmap, loadChunks(bitmap))
+    constructor(bitmap: Bitmap) : this(bitmap, loadChunks(bitmap), true)
 
     private fun repeatChunk(
         canvas: Canvas,
@@ -103,6 +103,29 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks) {
             style = Paint.Style.STROKE
             strokeWidth = 5f
         })
+    }
+
+    fun export(paint: Paint? = null): Bitmap {
+        var width = bitmap.width
+        var height = bitmap.height
+        if (!isPatch) {
+            width += 2
+            height += 2
+        }
+        val newBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(newBitmap)
+        val src = Rect(1, 1, width - 1, height - 1)
+        val dst = Rect(1, 1, width - 1, height - 1)
+        if (!isPatch) {
+            src.set(0, 0, width - 2, height - 2)
+        }
+        canvas.drawBitmap(bitmap, src, dst, paint)
+
+        val bounds = Rect(chunks.bounds)
+        if (!isPatch) bounds.offset(1, 1)
+        //newBitmap.setPixel()
+
+        return newBitmap
     }
 
     companion object {
@@ -301,12 +324,12 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks) {
 
 
 data class KPatchChunks(
-    val bounds: Rect, // 素材源区域
-    val splitX: List<IntRange>, // X轴切割范围 范围内部为可拉伸区域
-    val splitY: List<IntRange>, // Y轴切割范围 范围内部为可拉伸区域
-    val delX: List<IntRange> = emptyList(), // X轴删除范围 范围内部为删除区域
-    val delY: List<IntRange> = emptyList(), // Y轴删除范围 范围内部为删除区域
-    val padding: Rect, // 内容边距 (这里直接忽略)
+    var bounds: Rect, // 素材源区域
+    var splitX: List<IntRange>, // X轴切割范围 范围内部为可拉伸区域
+    var splitY: List<IntRange>, // Y轴切割范围 范围内部为可拉伸区域
+    var delX: List<IntRange> = emptyList(), // X轴删除范围 范围内部为删除区域
+    var delY: List<IntRange> = emptyList(), // Y轴删除范围 范围内部为删除区域
+    var padding: Rect, // 内容边距
 ) {
     data class Chunk(
         val src: Rect, // 块源区域
