@@ -207,7 +207,7 @@ fun Editor(kPatch: KPatch) {
             .pointerInput(Unit) {
                 detectTransformGestures { centroid, pan, zoom, _ ->
                     editor.offset(pan.x, pan.y)
-                    if (zoom > 1) editor.scale(centroid.x, centroid.y, zoom)
+                    if (zoom != 1f) editor.scale(centroid.x, centroid.y, zoom)
                     updater.intValue++
                 }
             }) {
