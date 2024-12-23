@@ -71,12 +71,10 @@ class KPatchEditor(val kPatch: KPatch) {
         val offsetX = offsetX!!
         val offsetY = offsetY!!
 
-        canvas.withClip(bounds) {
-            save()
-            canvas.translate(offsetX, offsetY)
-            canvas.scale(scale, scale)
-            drawBitmap(bitmap, null, bitmapBounds, paint)
-            restore()
-        }
+        canvas.save()
+        canvas.translate(offsetX, offsetY)
+        canvas.scale(scale, scale)
+        canvas.drawBitmap(bitmap, null, bitmapBounds, paint)
+        canvas.restore()
     }
 }
