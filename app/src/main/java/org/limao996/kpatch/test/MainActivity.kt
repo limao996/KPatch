@@ -1,39 +1,51 @@
 package org.limao996.kpatch.test
 
 import android.graphics.BitmapFactory
+import android.graphics.Path
 import android.graphics.Rect
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.runtime.mutableDoubleStateOf
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.toRectF
+import androidx.core.graphics.withClip
 import org.limao996.kpatch.KPatch
-import org.limao996.kpatch.KPatchChunks
+import org.limao996.kpatch.editor.KPatchEditor
 import org.limao996.kpatch.drawKPatch
-import kotlin.math.log
+import org.limao996.kpatch.log
 
 class MainActivity : ComponentActivity() {
+    @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -71,9 +83,25 @@ class MainActivity : ComponentActivity() {
                             val debug = remember { mutableStateOf(true) }
                             val inner = remember { mutableIntStateOf(KPatch.REPEAT_INNER_BOTH) }
                             val outer = remember { mutableIntStateOf(KPatch.REPEAT_OUTER_ALL) }
-                            val scale = remember { mutableDoubleStateOf(1.0) }
+                            val scale = remember { mutableFloatStateOf(1f) }
                             val width = remember { mutableIntStateOf(800) }
-                            val height = remember { mutableIntStateOf(1200) }
+                            val height = remember { mutableIntStateOf(1000) }
+
+                            val showEditor = remember { mutableStateOf(true) }
+                            if (showEditor.value) AlertDialog({ showEditor.value = false },
+                                title = { Text("编辑") },
+                                text = {
+                                    Editor(kPatch)
+                                },
+                                confirmButton = {
+                                    Button({ showEditor.value = false }) {
+                                        Text("确定")
+                                    }
+                                })
+
+                            Button({ showEditor.value = true }) {
+                                Text("编辑")
+                            }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -117,9 +145,9 @@ class MainActivity : ComponentActivity() {
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text("缩放：" + (scale.doubleValue * 100).toInt() / 100f)
-                                Slider(scale.doubleValue.toFloat(), {
-                                    scale.doubleValue = it.toDouble()
+                                Text("缩放：" + (scale.floatValue * 100).toInt() / 100f)
+                                Slider(scale.floatValue, {
+                                    scale.floatValue = it
                                 }, valueRange = 0.3f..3f)
                             }
                             Row(
@@ -142,16 +170,17 @@ class MainActivity : ComponentActivity() {
                             }
 
                             Canvas(
-                                Modifier.fillMaxSize()
+                                Modifier
+                                    .fillMaxSize()
+                                    .clipToBounds()
                             ) {
                                 drawIntoCanvas {
-                                    it.nativeCanvas.drawBitmap(kPatch.bitmap, 0f, 0f, null)
                                     it.nativeCanvas.drawKPatch(
                                         kPatch = kPatch,
                                         bounds = Rect(
                                             0, 0, width.intValue, height.intValue
                                         ),
-                                        scale = scale.doubleValue,
+                                        scale = scale.floatValue,
                                         flags = inner.intValue or outer.intValue,
                                         debug = debug.value
                                     )
@@ -164,4 +193,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+@Composable
+fun Editor(kPatch: KPatch) {
+    val updater = remember { mutableIntStateOf(0) }
+    val editor = remember { KPatchEditor(kPatch) }
+
+    Column(Modifier.fillMaxWidth()) {
+        Canvas(Modifier
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clipToBounds()
+            .pointerInput(Unit) {
+                detectTransformGestures { centroid, pan, zoom, _ ->
+                    editor.offset(pan.x, pan.y)
+                    if (zoom != 1f) editor.scale(centroid.x, centroid.y, zoom)
+                    updater.intValue++
+                }
+            }) {
+            drawIntoCanvas {
+                updater.intValue
+                val canvas = it.nativeCanvas
+                val bounds = canvas.clipBounds
+                val clipPath = Path()
+                clipPath.addRoundRect(bounds.toRectF(), 24.dp.value, 24.dp.value, Path.Direction.CW)
+                canvas.withClip(clipPath) {
+                    drawColor(0x10000000.toInt())
+                    editor.draw(this, bounds)
+                }
+            }
+        }
+    }
+}
+
+
+
+
+
+
 

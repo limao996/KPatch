@@ -10,7 +10,6 @@ import android.util.Size
 import androidx.core.graphics.withClip
 import kotlin.collections.List
 import kotlin.math.ceil
-import kotlin.math.log
 import kotlin.ranges.IntRange
 
 class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean = false) {
@@ -21,7 +20,7 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
         canvas: Canvas,
         bounds: Rect, // 填充边界
         src: Rect, // 源区域
-        scale: Double, // 缩放比例
+        scale: Float, // 缩放比例
         type: Int, // 块类型
         flags: Int, // 填充模式
         paint: Paint? = null,
@@ -68,8 +67,8 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
 
     fun draw(
         canvas: Canvas,
-        bounds: Rect,
-        scale: Double = 1.0,
+        bounds: Rect = canvas.clipBounds,
+        scale: Float = 1f,
         flags: Int = 0,
         debug: Boolean = false,
         paint: Paint? = null,
@@ -78,7 +77,7 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
             val chunks = chunks.fill(bounds, scale)
             for (chunk in chunks) {
                 when (chunk.type) {
-                    TYPE_INNER, REPEAT_OUTER_X, REPEAT_OUTER_Y -> repeatChunk(
+                    TYPE_INNER, TYPE_OUTER_X, TYPE_OUTER_Y -> repeatChunk(
                         canvas, chunk.dst!!, chunk.src, scale, chunk.type, flags, paint
                     )
 
@@ -89,8 +88,8 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
                 if (debug) canvas.drawRect(chunk.dst!!, Paint().apply {
                     color = when (chunk.type) {
                         TYPE_INNER -> Color.BLUE
-                        REPEAT_OUTER_X -> Color.GREEN
-                        REPEAT_OUTER_Y -> Color.YELLOW
+                        TYPE_OUTER_X -> Color.GREEN
+                        TYPE_OUTER_Y -> Color.YELLOW
                         TYPE_FIXED -> Color.TRANSPARENT
                         else -> Color.TRANSPARENT
                     }
@@ -417,8 +416,8 @@ data class KPatchChunks(
                             lineX.first.first, lineY.first.first, lineX.first.last, lineY.first.last
                         ), type = when {
                             lineX.second == 1 && lineY.second == 1 -> KPatch.TYPE_INNER
-                            lineX.second == 1 -> KPatch.REPEAT_OUTER_X
-                            lineY.second == 1 -> KPatch.REPEAT_OUTER_Y
+                            lineX.second == 1 -> KPatch.TYPE_OUTER_X
+                            lineY.second == 1 -> KPatch.TYPE_OUTER_Y
                             lineY.second == 0 -> KPatch.TYPE_FIXED
                             else -> KPatch.TYPE_DEL
                         }
@@ -432,7 +431,7 @@ data class KPatchChunks(
 
     fun fill(
         bounds: Rect, // 填充区域
-        scale: Double, // 块缩放比例
+        scale: Float, // 块缩放比例
     ): List<Chunk> {
         val (chunks, lineX, lineY) = split()
         val dstX = HashMap<IntRange, IntRange>()
@@ -519,8 +518,8 @@ data class KPatchChunks(
 
 fun Canvas.drawKPatch(
     kPatch: KPatch,
-    bounds: Rect,
-    scale: Double = 1.0,
+    bounds: Rect = clipBounds,
+    scale: Float = 1f,
     flags: Int = 0,
     debug: Boolean = false,
     paint: Paint? = null,
