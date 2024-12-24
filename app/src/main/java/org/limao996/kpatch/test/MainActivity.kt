@@ -53,6 +53,9 @@ class MainActivity : ComponentActivity() {
         // 加载.9图片
         val bitmap = BitmapFactory.decodeStream(assets.open("a.9.png"))
         val kPatch = KPatch(bitmap) // 自动解析属性
+        log(kPatch.bitmap.width, kPatch.chunks.bounds)
+        kPatch.chunks.delX = listOf(30..50)
+        kPatch.chunks.delY = listOf(30..50)
 
         /*
         // 加载普通图片
@@ -178,7 +181,7 @@ class MainActivity : ComponentActivity() {
                                     it.nativeCanvas.drawKPatch(
                                         kPatch = kPatch,
                                         bounds = Rect(
-                                            0, 0, width.intValue, height.intValue
+                                            4, 4, width.intValue - 4, height.intValue - 4
                                         ),
                                         scale = scale.floatValue,
                                         flags = inner.intValue or outer.intValue,
@@ -218,7 +221,6 @@ fun Editor(kPatch: KPatch) {
                 val clipPath = Path()
                 clipPath.addRoundRect(bounds.toRectF(), 24.dp.value, 24.dp.value, Path.Direction.CW)
                 canvas.withClip(clipPath) {
-                    drawColor(0x10000000.toInt())
                     editor.draw(this, bounds)
                 }
             }

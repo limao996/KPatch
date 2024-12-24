@@ -2,20 +2,24 @@ package org.limao996.kpatch.editor
 
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Matrix
+import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Point
 import android.graphics.Rect
-import androidx.core.graphics.withClip
+import android.graphics.RectF
+import androidx.core.graphics.withScale
 import androidx.core.graphics.withTranslation
 import org.limao996.kpatch.KPatch
+import org.limao996.kpatch.KPatch.Companion.TYPE_DEL
+import org.limao996.kpatch.KPatch.Companion.TYPE_FIXED
+import org.limao996.kpatch.KPatch.Companion.TYPE_INNER
+import org.limao996.kpatch.KPatch.Companion.TYPE_OUTER_X
+import org.limao996.kpatch.KPatch.Companion.TYPE_OUTER_Y
 import org.limao996.kpatch.KPatchChunks
-import org.limao996.kpatch.log
 import kotlin.math.max
 import kotlin.math.min
-import kotlin.properties.Delegates
+import kotlin.math.roundToInt
 
-class KPatchEditor(val kPatch: KPatch) {
+open class KPatchEditor(val kPatch: KPatch) {
     constructor(
         bitmap: Bitmap, chunks: KPatchChunks, isPatch: Boolean = false
     ) : this(KPatch(bitmap, chunks, isPatch))
@@ -53,12 +57,69 @@ class KPatchEditor(val kPatch: KPatch) {
         offsetY = centroidY - newRelativeY
     }
 
-    fun draw(
-        canvas: Canvas, bounds: Rect = canvas.clipBounds, paint: Paint? = null
-    ) {
+    open fun drawBackground(canvas: Canvas, bounds: Rect) {
+        canvas.drawColor(0x10000000.toInt())
+    }
+
+    open val paints = mapOf(
+        TYPE_INNER to Paint().apply {
+            color = 0x570000ff
+            style = Paint.Style.FILL
+        },
+        TYPE_OUTER_X to Paint().apply {
+            color = 0x5700ff00
+            style = Paint.Style.FILL
+        },
+        TYPE_OUTER_Y to Paint().apply {
+            color = 0x57ffff00
+            style = Paint.Style.FILL
+        },
+        TYPE_DEL to Paint().apply {
+            color = 0x57ff0000
+            style = Paint.Style.FILL
+        },
+        TYPE_FIXED to Paint().apply {
+            color = 0x57000000
+            style = Paint.Style.FILL
+        },
+        "bounds" to Paint().apply {
+            color = Color.RED
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f
+        },
+    )
+
+    open fun drawBody(canvas: Canvas, bounds: Rect) {
         val bitmap = kPatch.bitmap
         val chunks = kPatch.chunks
-        val bitmapBounds = Rect(0, 0, bitmap.width, bitmap.height)
+        val srcBounds = Rect(0, 0, bitmap.width - 1, bitmap.height - 1)
+
+        val scale = scale!!
+        val offsetX = offsetX!!
+        val offsetY = offsetY!!
+        canvas.withTranslation(offsetX, offsetY) {
+            canvas.withScale(scale, scale) {
+                //kPatch.draw(canvas, bitmapBounds)
+                canvas.drawBitmap(bitmap, null, srcBounds, null)
+                val chunkList = chunks.fill(chunks.bounds, 1f, true)
+                for (chunk in chunkList) {
+                    canvas.drawRect(chunk.dst!!, paints[chunk.type]!!)
+                }
+            }
+            val boundsRect = RectF(
+                chunks.bounds.left * scale,
+                chunks.bounds.top * scale,
+                chunks.bounds.right * scale,
+                chunks.bounds.bottom * scale
+            )
+            canvas.drawRect(boundsRect, paints["bounds"]!!)
+        }
+    }
+
+    open fun draw(
+        canvas: Canvas, bounds: Rect = canvas.clipBounds
+    ) {
+        val bitmap = kPatch.bitmap
 
         scale = scale ?: (min(bounds.width(), bounds.height()) / max(
             bitmap.width, bitmap.height
@@ -67,14 +128,7 @@ class KPatchEditor(val kPatch: KPatch) {
         offsetX = offsetX ?: (bounds.centerX() - (bitmap.width * scale!! / 2f))
         offsetY = offsetY ?: (bounds.centerY() - (bitmap.height * scale!! / 2f))
 
-        val scale = scale!!
-        val offsetX = offsetX!!
-        val offsetY = offsetY!!
-
-        canvas.save()
-        canvas.translate(offsetX, offsetY)
-        canvas.scale(scale, scale)
-        canvas.drawBitmap(bitmap, null, bitmapBounds, paint)
-        canvas.restore()
+        drawBackground(canvas, bounds)
+        drawBody(canvas, bounds)
     }
 }

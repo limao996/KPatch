@@ -71,10 +71,11 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
         scale: Float = 1f,
         flags: Int = 0,
         debug: Boolean = false,
+        demo: Boolean = false,
         paint: Paint? = null,
     ) {
         canvas.withClip(bounds) {
-            val chunks = chunks.fill(bounds, scale)
+            val chunks = chunks.fill(bounds, scale, demo)
             for (chunk in chunks) {
                 when (chunk.type) {
                     TYPE_INNER, TYPE_OUTER_X, TYPE_OUTER_Y -> repeatChunk(
@@ -87,21 +88,23 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
                 }
                 if (debug) canvas.drawRect(chunk.dst!!, Paint().apply {
                     color = when (chunk.type) {
-                        TYPE_INNER -> Color.BLUE
-                        TYPE_OUTER_X -> Color.GREEN
-                        TYPE_OUTER_Y -> Color.YELLOW
-                        TYPE_FIXED -> Color.TRANSPARENT
+                        TYPE_INNER -> 0x570000ff
+                        TYPE_OUTER_X -> 0x5700ff00
+                        TYPE_OUTER_Y -> 0x57ffff00
+                        TYPE_DEL -> 0x57ff0000
+                        TYPE_FIXED -> 0x57000000
                         else -> Color.TRANSPARENT
-                    }
-                    alpha = 80
+                    }.toInt()
                     style = Paint.Style.FILL
                 })
             }
         }
-        if (debug) canvas.drawRect(bounds, Paint().apply {
+        if (debug) canvas.drawRect(Rect(
+            bounds.left - 2, bounds.top - 2, bounds.right - 2, bounds.bottom - 2
+        ), Paint().apply {
             color = Color.BLACK
             style = Paint.Style.STROKE
-            strokeWidth = 5f
+            strokeWidth = 4f
         })
     }
 
@@ -367,7 +370,9 @@ data class KPatchChunks(
         var dst: Rect? = null, // 填充区域
     )
 
-    fun split(): Triple<List<Chunk>, List<Pair<IntRange, Int>>, List<Pair<IntRange, Int>>> {
+    fun split(
+        isDemoMode: Boolean = false, // 是否为演示模式
+    ): Triple<List<Chunk>, List<Pair<IntRange, Int>>, List<Pair<IntRange, Int>>> {
         val chunks = ArrayList<Chunk>()
         val lineXList = ArrayList<Pair<IntRange, Int>>()
         val lineYList = ArrayList<Pair<IntRange, Int>>()
@@ -388,7 +393,7 @@ data class KPatchChunks(
                 lineXList.add(last..line.first to 0)
             }
             lineXList.add(line to type)
-            last = line.last //+ 1
+            last = line.last
         }
         if (last < bounds.right) {
             lineXList.add(last..bounds.right to 0)
@@ -401,7 +406,7 @@ data class KPatchChunks(
                 lineYList.add(last..line.first to 0)
             }
             lineYList.add(line to type)
-            last = line.last //+ 1
+            last = line.last
         }
         if (last < bounds.bottom) {
             lineYList.add(last..bounds.bottom to 0)
@@ -409,17 +414,18 @@ data class KPatchChunks(
 
         for (lineX in lineXList) {
             for (lineY in lineYList) {
-                if (lineX.second == -1 || lineY.second == -1) continue
+                if (!isDemoMode && (lineX.second == -1 || lineY.second == -1)) continue
                 chunks.add(
                     Chunk(
                         src = Rect(
                             lineX.first.first, lineY.first.first, lineX.first.last, lineY.first.last
                         ), type = when {
+                            lineX.second == -1 || lineY.second == -1 -> KPatch.TYPE_DEL
                             lineX.second == 1 && lineY.second == 1 -> KPatch.TYPE_INNER
                             lineX.second == 1 -> KPatch.TYPE_OUTER_X
                             lineY.second == 1 -> KPatch.TYPE_OUTER_Y
                             lineY.second == 0 -> KPatch.TYPE_FIXED
-                            else -> KPatch.TYPE_DEL
+                            else -> 0
                         }
                     )
                 )
@@ -432,8 +438,9 @@ data class KPatchChunks(
     fun fill(
         bounds: Rect, // 填充区域
         scale: Float, // 块缩放比例
+        isDemoMode: Boolean = false, // 是否为演示模式
     ): List<Chunk> {
-        val (chunks, lineX, lineY) = split()
+        val (chunks, lineX, lineY) = split(isDemoMode)
         val dstX = HashMap<IntRange, IntRange>()
         val dstY = HashMap<IntRange, IntRange>()
         var srcFixedXSize = 0
@@ -445,7 +452,7 @@ data class KPatchChunks(
                 val size = line.last - line.first
                 val dstSize = (size * scale).toInt()
                 srcFixedXSize += size
-                if (type == 0) {
+                if (isDemoMode || type == 0) {
                     dstFixedXSize += dstSize
                     dstSizeX[line] = dstSize
                 }
@@ -466,7 +473,7 @@ data class KPatchChunks(
         for (entry in dstSizeX.entries.sortedBy { it.key.first }) {
             val size = entry.value
             dstX[entry.key] = lastX..(lastX + size)
-            lastX += size //+ 1
+            lastX += size
         }
         var srcFixedYSize = 0
         var dstFixedYSize = 0
@@ -477,7 +484,7 @@ data class KPatchChunks(
                 val size = line.last - line.first
                 val dstSize = (size * scale).toInt()
                 srcFixedYSize += size
-                if (type == 0) {
+                if (isDemoMode || type == 0) {
                     dstFixedYSize += dstSize
                     dstSizeY[line] = dstSize
                 }
@@ -498,7 +505,7 @@ data class KPatchChunks(
         for (entry in dstSizeY.entries.sortedBy { it.key.first }) {
             val size = entry.value
             dstY[entry.key] = lastY..(lastY + size)
-            lastY += size //+ 1
+            lastY += size
         }
 
         for (chunk in chunks) {
@@ -522,6 +529,7 @@ fun Canvas.drawKPatch(
     scale: Float = 1f,
     flags: Int = 0,
     debug: Boolean = false,
+    demo: Boolean = false,
     paint: Paint? = null,
 ) {
     kPatch.draw(
@@ -530,6 +538,7 @@ fun Canvas.drawKPatch(
         scale,
         flags,
         debug,
+        demo,
         paint,
     )
 }
