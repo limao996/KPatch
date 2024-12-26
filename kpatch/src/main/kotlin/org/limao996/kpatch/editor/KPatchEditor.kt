@@ -163,7 +163,6 @@ open class KPatchEditor(val kPatch: KPatch) {
                         val (line, type) = pair
                         if (type == 0) continue
                         val paint = paints[SPLIT_TYPE_MAP[type]]!! as TextPaint
-
                         CodeBlock("线") {
                             val left = line.first * scale
                             val right = line.last * scale

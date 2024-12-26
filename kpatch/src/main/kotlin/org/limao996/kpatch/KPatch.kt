@@ -185,18 +185,18 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
                 when (pixel) {
                     Color.TRANSPARENT -> {
                         if (splitFirst != null) {
-                            splitX.add(splitFirst..index - 1)
+                            splitX.add(splitFirst..<index)
                             splitFirst = null
                         }
                         if (delFirst != null) {
-                            delX.add(delFirst..index - 1)
+                            delX.add(delFirst..<index)
                             delFirst = null
                         }
                     }
 
                     Color.RED -> {
                         if (splitFirst != null) {
-                            splitX.add(splitFirst..index - 1)
+                            splitX.add(splitFirst..<index)
                             splitFirst = null
                         }
                         if (delFirst == null) {
@@ -209,7 +209,7 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
                             splitFirst = index
                         }
                         if (delFirst != null) {
-                            delX.add(delFirst..index - 1)
+                            delX.add(delFirst..<index)
                             delFirst = null
                         }
                     }
@@ -261,18 +261,18 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
                 when (pixel) {
                     Color.TRANSPARENT -> {
                         if (splitFirst != null) {
-                            splitY.add(splitFirst..index - 1)
+                            splitY.add(splitFirst..<index)
                             splitFirst = null
                         }
                         if (delFirst != null) {
-                            delY.add(delFirst..index - 1)
+                            delY.add(delFirst..<index)
                             delFirst = null
                         }
                     }
 
                     Color.RED -> {
                         if (splitFirst != null) {
-                            splitY.add(splitFirst..index - 1)
+                            splitY.add(splitFirst..<index)
                             splitFirst = null
                         }
                         if (delFirst == null) {
@@ -285,7 +285,7 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
                             splitFirst = index
                         }
                         if (delFirst != null) {
-                            delY.add(delFirst..index - 1)
+                            delY.add(delFirst..<index)
                             delFirst = null
                         }
                     }
@@ -450,18 +450,18 @@ data class KPatchChunks(
         val (chunks, lineX, lineY) = data
         val dstX = HashMap<IntRange, IntRange>()
         val dstY = HashMap<IntRange, IntRange>()
-        var srcFixedXSize = 0
-        var dstFixedXSize = 0
+        var srcFixedXSize = 0.0
+        var dstFixedXSize = 0.0
         val dstSizeX = HashMap<IntRange, Int>()
         for (pair in lineX) {
             val (line, type) = pair
             if (type != 1) {
                 val size = line.last - line.first
-                val dstSize = (size * scale).toInt()
+                val dstSize = (size * scale)
                 srcFixedXSize += size
                 if (isDemoMode || type == 0) {
                     dstFixedXSize += dstSize
-                    dstSizeX[line] = dstSize
+                    dstSizeX[line] = dstSize.toInt()
                 }
             }
         }
@@ -472,8 +472,8 @@ data class KPatchChunks(
             if (type == 1) {
                 val size = line.last - line.first
                 val weight = size.toDouble() / srcRepeatXSize
-                val dstSize = (dstRepeatXSize * weight).toInt()
-                dstSizeX[line] = dstSize
+                val dstSize = (dstRepeatXSize * weight)
+                dstSizeX[line] = dstSize.toInt()
             }
         }
         var lastX = 0
@@ -482,18 +482,18 @@ data class KPatchChunks(
             dstX[entry.key] = lastX..(lastX + size)
             lastX += size
         }
-        var srcFixedYSize = 0
-        var dstFixedYSize = 0
+        var srcFixedYSize = 0.0
+        var dstFixedYSize = 0.0
         val dstSizeY = HashMap<IntRange, Int>()
         for (pair in lineY) {
             val (line, type) = pair
             if (type != 1) {
                 val size = line.last - line.first
-                val dstSize = (size * scale).toInt()
+                val dstSize = size * scale
                 srcFixedYSize += size
                 if (isDemoMode || type == 0) {
                     dstFixedYSize += dstSize
-                    dstSizeY[line] = dstSize
+                    dstSizeY[line] = dstSize.toInt()
                 }
             }
         }
@@ -504,8 +504,8 @@ data class KPatchChunks(
             if (type == 1) {
                 val size = line.last - line.first
                 val weight = size.toDouble() / srcRepeatYSize
-                val dstSize = (dstRepeatYSize * weight).toInt()
-                dstSizeY[line] = dstSize
+                val dstSize = dstRepeatYSize * weight
+                dstSizeY[line] = dstSize.toInt()
             }
         }
         var lastY = 0
