@@ -439,8 +439,15 @@ data class KPatchChunks(
         bounds: Rect, // 填充区域
         scale: Float, // 块缩放比例
         isDemoMode: Boolean = false, // 是否为演示模式
+    ) = fill(split(isDemoMode), bounds, scale, isDemoMode)
+
+    fun fill(
+        data: Triple<List<Chunk>, List<Pair<IntRange, Int>>, List<Pair<IntRange, Int>>>,// 分割数据
+        bounds: Rect, // 填充区域
+        scale: Float, // 块缩放比例
+        isDemoMode: Boolean = false, // 是否为演示模式
     ): List<Chunk> {
-        val (chunks, lineX, lineY) = split(isDemoMode)
+        val (chunks, lineX, lineY) = data
         val dstX = HashMap<IntRange, IntRange>()
         val dstY = HashMap<IntRange, IntRange>()
         var srcFixedXSize = 0

@@ -8,6 +8,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -31,11 +33,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toRectF
 import androidx.core.graphics.withClip
@@ -43,6 +48,8 @@ import org.limao996.kpatch.KPatch
 import org.limao996.kpatch.editor.KPatchEditor
 import org.limao996.kpatch.drawKPatch
 import org.limao996.kpatch.log
+import kotlin.math.max
+import kotlin.math.min
 
 class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -53,7 +60,6 @@ class MainActivity : ComponentActivity() {
         // 加载.9图片
         val bitmap = BitmapFactory.decodeStream(assets.open("a.9.png"))
         val kPatch = KPatch(bitmap) // 自动解析属性
-        log(kPatch.bitmap.width, kPatch.chunks.bounds)
         kPatch.chunks.delX = listOf(30..50)
         kPatch.chunks.delY = listOf(30..50)
 
@@ -197,6 +203,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun Editor(kPatch: KPatch) {
     val updater = remember { mutableIntStateOf(0) }
@@ -210,7 +217,7 @@ fun Editor(kPatch: KPatch) {
             .pointerInput(Unit) {
                 detectTransformGestures { centroid, pan, zoom, _ ->
                     editor.offset(pan.x, pan.y)
-                    if (zoom != 1f) editor.scale(centroid.x, centroid.y, zoom)
+                    editor.scale(centroid.x, centroid.y, max(0.1f, min(zoom, 5.0f)))
                     updater.intValue++
                 }
             }) {
