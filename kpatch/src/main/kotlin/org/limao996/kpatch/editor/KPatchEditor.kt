@@ -6,9 +6,7 @@ import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Rect
-import android.graphics.RectF
 import android.text.TextPaint
-import android.view.MotionEvent
 import androidx.core.graphics.toRectF
 import androidx.core.graphics.withScale
 import androidx.core.graphics.withTranslation
@@ -20,7 +18,6 @@ import org.limao996.kpatch.KPatch.Companion.TYPE_INNER
 import org.limao996.kpatch.KPatch.Companion.TYPE_OUTER_X
 import org.limao996.kpatch.KPatch.Companion.TYPE_OUTER_Y
 import org.limao996.kpatch.KPatchChunks
-import org.limao996.kpatch.log
 import kotlin.math.max
 import kotlin.math.min
 
@@ -98,7 +95,7 @@ open class KPatchEditor(val kPatch: KPatch) {
             style = Paint.Style.FILL
         },
         "chunk_fixed" to Paint().apply {
-            color = 0x30000000
+            color = 0x30ff7f00
             style = Paint.Style.FILL
         },
         "split_expand" to TextPaint().apply {
@@ -337,7 +334,6 @@ open class KPatchEditor(val kPatch: KPatch) {
                 canvas.drawLine(left, chunksBounds.bottom, right, chunksBounds.bottom, paint)
             }
         }
-
     }
 
     open fun draw(

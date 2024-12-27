@@ -8,8 +8,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -38,16 +36,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.input.pointer.motionEventSpy
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toRectF
 import androidx.core.graphics.withClip
 import org.limao996.kpatch.KPatch
-import org.limao996.kpatch.editor.KPatchEditor
 import org.limao996.kpatch.drawKPatch
-import org.limao996.kpatch.log
+import org.limao996.kpatch.editor.KPatchEditor
 import kotlin.math.max
 import kotlin.math.min
 
@@ -62,6 +57,7 @@ class MainActivity : ComponentActivity() {
         val kPatch = KPatch(bitmap) // 自动解析属性
         kPatch.chunks.delX = listOf(30..50)
         kPatch.chunks.delY = listOf(30..50)
+        //kPatch.chunks.bounds = Rect(10, 15, 480, 740)
 
         /*
         // 加载普通图片
@@ -96,11 +92,11 @@ class MainActivity : ComponentActivity() {
                             val width = remember { mutableIntStateOf(800) }
                             val height = remember { mutableIntStateOf(1000) }
 
-                            val showEditor = remember { mutableStateOf(true) }
+                            val showEditor = remember { mutableStateOf(false) }
                             if (showEditor.value) AlertDialog({ showEditor.value = false },
-                                title = { Text("编辑") },
+                                title = { Text("编辑（开发中）") },
                                 text = {
-                                    Editor(kPatch)
+                                    Editor(remember { KPatchEditor(kPatch) })
                                 },
                                 confirmButton = {
                                     Button({ showEditor.value = false }) {
@@ -205,9 +201,8 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun Editor(kPatch: KPatch) {
+fun Editor(editor: KPatchEditor) {
     val updater = remember { mutableIntStateOf(0) }
-    val editor = remember { KPatchEditor(kPatch) }
 
     Column(Modifier.fillMaxWidth()) {
         Canvas(Modifier

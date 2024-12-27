@@ -5,7 +5,6 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Rect
-import android.util.Log
 import android.util.Size
 import androidx.core.graphics.withClip
 import kotlin.collections.List
@@ -23,7 +22,6 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
         scale: Float, // 缩放比例
         type: Int, // 块类型
         flags: Int, // 填充模式
-        paint: Paint? = null,
     ) {
         canvas.withClip(bounds) {
             var repeatX = flags and type != 0
@@ -46,7 +44,7 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
             repeat(countY) { y ->
                 repeat(countX) { x ->
                     canvas.drawBitmap(
-                        bitmap, src, dst, paint
+                        bitmap, src, dst, null
                     )
                     dst.offset(dstSize.width, 0)
                 }
@@ -59,9 +57,8 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
         canvas: Canvas,
         dst: Rect, // 填充边界
         src: Rect, // 源区域
-        paint: Paint? = null,
     ) = canvas.drawBitmap(
-        bitmap, src, dst, paint
+        bitmap, src, dst, null
     )
 
 
@@ -72,18 +69,17 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
         flags: Int = 0,
         debug: Boolean = false,
         demo: Boolean = false,
-        paint: Paint? = null,
     ) {
         canvas.withClip(bounds) {
             val chunks = chunks.fill(bounds, scale, demo)
             for (chunk in chunks) {
                 when (chunk.type) {
                     TYPE_INNER, TYPE_OUTER_X, TYPE_OUTER_Y -> repeatChunk(
-                        canvas, chunk.dst!!, chunk.src, scale, chunk.type, flags, paint
+                        canvas, chunk.dst!!, chunk.src, scale, chunk.type, flags
                     )
 
                     TYPE_FIXED -> fillChunk(
-                        canvas, chunk.dst!!, chunk.src, paint
+                        canvas, chunk.dst!!, chunk.src
                     )
                 }
                 if (debug) canvas.drawRect(chunk.dst!!, Paint().apply {
@@ -108,55 +104,132 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
         })
     }
 
-    fun export(paint: Paint? = null): Bitmap {
-        val offset = if (isPatch) 0 else 1
-        var width = bitmap.width + (offset * 2)
-        var height = bitmap.height + (offset * 2)
-        val newBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+    fun export(
+        tidy: Boolean = false// 是否整理
+    ): Bitmap {
+        val data = chunks.split(!tidy)
+        val (_, lineX, lineY) = data
+
+        var srcWidth = 0
+        var srcHeight = 0
+        var dstWidth = 0
+        var dstHeight = 0
+
+        CodeBlock("计算尺寸") {
+            for (pair in lineX) {
+                val (line, type) = pair
+                val size = line.last - line.first
+                srcWidth += size
+                if (tidy && type == -1) continue
+                dstWidth += size
+            }
+            for (pair in lineY) {
+                val (line, type) = pair
+                val size = line.last - line.first
+                srcHeight += size
+                if (tidy && type == -1) continue
+                dstHeight += size
+            }
+            dstWidth += 2
+            dstHeight += 2
+        }
+
+        val newBitmap = Bitmap.createBitmap(dstWidth, dstHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(newBitmap)
-        val src = Rect(offset, offset, width - 1 - offset, height - 1 - offset)
-        val dst = Rect(offset, offset, width - 1 - offset, height - 1 - offset)
-        canvas.drawBitmap(bitmap, src, dst, paint)
 
-        // 边界
-        val bounds = Rect(chunks.bounds)
-        bounds.offset(offset, offset)
-        newBitmap.setPixel(bounds.left, height - 1, Color.RED)
-        newBitmap.setPixel(bounds.right, height - 1, Color.RED)
-        newBitmap.setPixel(width - 1, bounds.top, Color.RED)
-        newBitmap.setPixel(width - 1, bounds.bottom, Color.RED)
+        val dst = Rect(1, 1, dstWidth - 2, dstHeight - 2)
+        val chunkList = chunks.fill(data, dst, 1f, !tidy)
 
-        // 切割
-        for (line in chunks.splitX) {
-            val start = line.first + offset
-            val end = line.last + offset
-            for (pos in start..end) newBitmap.setPixel(pos, 0, Color.BLACK)
-        }
-        for (line in chunks.splitY) {
-            val start = line.first + offset
-            val end = line.last + offset
-            for (pos in start..end) newBitmap.setPixel(0, pos, Color.BLACK)
+        CodeBlock("填充") {
+            for (chunk in chunkList) {
+                if (tidy && chunk.type == -1) continue
+                canvas.drawBitmap(bitmap, chunk.src, chunk.dst!!, null)
+            }
         }
 
-        // 删除
-        for (line in chunks.delX) {
-            val start = line.first + offset
-            val end = line.last + offset
-            for (pos in start..end) newBitmap.setPixel(pos, 0, Color.RED)
+        CodeBlock("边界") {
+            val rect = Rect(
+                chunks.bounds.left - if (isPatch) 1 else 0,
+                chunks.bounds.top - if (isPatch) 1 else 0,
+                dstWidth - (bitmap.width - chunks.bounds.right) - 1,
+                dstHeight - (bitmap.height - chunks.bounds.bottom) - 1
+            )
+            rect.offset(1, 1)
+            newBitmap.setPixel(rect.left, dstHeight - 1, Color.RED)
+            newBitmap.setPixel(rect.right, dstHeight - 1, Color.RED)
+            newBitmap.setPixel(dstWidth - 1, rect.top, Color.RED)
+            newBitmap.setPixel(dstWidth - 1, rect.bottom, Color.RED)
         }
-        for (line in chunks.delY) {
-            val start = line.first + offset
-            val end = line.last + offset
-            for (pos in start..end) newBitmap.setPixel(0, pos, Color.RED)
+
+        CodeBlock("边距") {
+            var offsetX = 0
+            var offsetY = 0
+
+            CodeBlock("偏移", tidy) {
+                for (pair in lineX) {
+                    val (line, type) = pair
+                    if (type == -1) continue
+                    val size = line.last - line.first
+
+                    offsetX += size
+                    if (line.last >= chunks.padding.left) {
+                        offsetX -= line.last - chunks.padding.left
+                        break
+                    }
+                }
+                for (pair in lineY) {
+                    val (line, type) = pair
+                    if (type == -1) continue
+                    val size = line.last - line.first
+
+                    offsetY += size
+                    if (line.last >= chunks.padding.top) {
+                        offsetY -= line.last - chunks.padding.top
+                        break
+                    }
+                }
+            }
+            val rect = Rect(
+                chunks.padding.left - offsetX - if (isPatch) 1 else 0,
+                chunks.padding.top - offsetY - if (isPatch) 1 else 0,
+                dstWidth - (bitmap.width - chunks.padding.right) - 1,
+                dstHeight - (bitmap.height - chunks.padding.bottom) - 1
+            )
+            rect.offset(1, 1)
+            for (x in rect.left..rect.right) {
+                newBitmap.setPixel(x, dstHeight - 1, Color.BLACK)
+            }
+            for (y in rect.top..rect.bottom) {
+                newBitmap.setPixel(dstWidth - 1, y, Color.BLACK)
+            }
         }
 
-        // 边距
-        val padding = Rect(chunks.padding)
-        padding.offset(offset, offset)
-        for (pos in padding.left..padding.right) newBitmap.setPixel(pos, height - 1, Color.BLACK)
+        CodeBlock("切割") {
+            var offsetX = 0
+            for (pair in lineX) {
+                val (line, type) = pair
+                if (tidy && type == -1) continue
+                val size = line.last - line.first
 
-        for (pos in padding.top..padding.bottom) newBitmap.setPixel(width - 1, pos, Color.BLACK)
+                if (type != 0) {
+                    for (x in offsetX..offsetX + size) {
+                        newBitmap.setPixel(x, 0, if (type == -1) Color.RED else Color.BLACK)
+                    }
+                }
 
+                offsetX += size
+            }
+            var offsetY = 0
+            for (pair in lineY) {
+                val (line, type) = pair
+                if (tidy && type == -1) continue
+                val size = line.last - line.first
+                if (type != 0) for (y in offsetY..offsetY + size) {
+                    newBitmap.setPixel(0, y, if (type == -1) Color.RED else Color.BLACK)
+                }
+                offsetY += size
+            }
+        }
 
         return newBitmap
     }
@@ -222,11 +295,16 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
             pixels = IntArray(width)
             bitmap.getPixels(pixels, 0, width, 0, height - 1, width, 1)
             index = -1
+            var boundLock = false
             for (pixel in pixels) {
                 index++
                 when (pixel) {
                     Color.TRANSPARENT -> continue
-                    Color.RED -> bounds.left = index
+                    Color.RED -> if (!boundLock) {
+                        bounds.left = index
+                        boundLock = true
+                    }
+
                     Color.BLACK -> {
                         padding.left = index
                         break
@@ -236,11 +314,16 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
                 }
             }
             index = width - 1
+            boundLock = false
             while (index >= 0) {
                 val pos = index--
                 when (pixels[pos]) {
                     Color.TRANSPARENT -> continue
-                    Color.RED -> bounds.right = pos
+                    Color.RED -> if (!boundLock) {
+                        bounds.right = pos
+                        boundLock = true
+                    }
+
                     Color.BLACK -> {
                         padding.right = pos
                         break
@@ -298,11 +381,16 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
             pixels = IntArray(height)
             bitmap.getPixels(pixels, 0, 1, width - 1, 0, 1, height)
             index = -1
+            boundLock = false
             for (pixel in pixels) {
                 index++
                 when (pixel) {
                     Color.TRANSPARENT -> continue
-                    Color.RED -> bounds.top = index
+                    Color.RED -> if (!boundLock) {
+                        bounds.top = index
+                        boundLock = true
+                    }
+
                     Color.BLACK -> {
                         padding.top = index
                         break
@@ -312,11 +400,16 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
                 }
             }
             index = height - 1
+            boundLock = false
             while (index >= 0) {
                 val pos = index--
                 when (pixels[pos]) {
                     Color.TRANSPARENT -> continue
-                    Color.RED -> bounds.bottom = pos
+                    Color.RED -> if (!boundLock) {
+                        bounds.bottom = pos
+                        boundLock = true
+                    }
+
                     Color.BLACK -> {
                         padding.bottom = pos
                         break
@@ -325,7 +418,6 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
                     else -> break
                 }
             }
-
             if (splitX.isEmpty()) splitX.add(bounds.left..bounds.right)
             if (splitY.isEmpty()) splitY.add(bounds.top..bounds.bottom)
 
@@ -537,7 +629,6 @@ fun Canvas.drawKPatch(
     flags: Int = 0,
     debug: Boolean = false,
     demo: Boolean = false,
-    paint: Paint? = null,
 ) {
     kPatch.draw(
         this,
@@ -546,10 +637,5 @@ fun Canvas.drawKPatch(
         flags,
         debug,
         demo,
-        paint,
     )
-}
-
-fun log(vararg msg: Any?) {
-    Log.i("KPatch-Log", msg.joinToString("\t"))
 }
