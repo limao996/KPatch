@@ -7,9 +7,15 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.AnimationConstants
+import androidx.compose.animation.core.AnimationVector
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.calculateCentroid
+import androidx.compose.foundation.gestures.calculatePan
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
@@ -23,6 +29,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,15 +41,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.PointerType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toRectF
 import androidx.core.graphics.withClip
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.limao996.kpatch.KPatch
 import org.limao996.kpatch.drawKPatch
 import org.limao996.kpatch.editor.KPatchEditor
+import org.limao996.kpatch.log
 import kotlin.math.max
 import kotlin.math.min
 
@@ -92,7 +108,7 @@ class MainActivity : ComponentActivity() {
                             val width = remember { mutableIntStateOf(800) }
                             val height = remember { mutableIntStateOf(1000) }
 
-                            val showEditor = remember { mutableStateOf(false) }
+                            val showEditor = remember { mutableStateOf(true) }
                             if (showEditor.value) AlertDialog({ showEditor.value = false },
                                 title = { Text("编辑（开发中）") },
                                 text = {
@@ -204,16 +220,43 @@ class MainActivity : ComponentActivity() {
 fun Editor(editor: KPatchEditor) {
     val updater = remember { mutableIntStateOf(0) }
 
-    Column(Modifier.fillMaxWidth()) {
+    var centroid = 0f
+
+    Box(Modifier.fillMaxWidth()) {
         Canvas(Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
             .clipToBounds()
             .pointerInput(Unit) {
-                detectTransformGestures { centroid, pan, zoom, _ ->
-                    editor.offset(pan.x, pan.y)
-                    editor.scale(centroid.x, centroid.y, max(0.1f, min(zoom, 5.0f)))
-                    updater.intValue++
+                withContext(Dispatchers.Default) {
+                    while (isActive) {
+                        awaitPointerEventScope {
+                            val event = awaitPointerEvent()
+                            for (change in event.changes) {
+                                if (change.type == PointerType.Mouse) {
+                                    val delta = change.scrollDelta.y
+                                    if (delta != 0f) {
+                                        val centroid = change.position
+                                        val value = 1 - (0.1f * delta)
+                                        editor.scale(centroid.x, centroid.y, value)
+                                        updater.intValue++
+                                        break
+                                    }
+                                }
+                            }
+                            val pan = event.calculatePan()
+                            val zoom = event.calculateZoom()
+                            if (pan != Offset.Zero) {
+                                editor.offset(pan.x, pan.y)
+                                updater.intValue++
+                            }
+                            if (zoom != 1f) {
+                                val centroid = event.calculateCentroid()
+                                editor.scale(centroid.x, centroid.y, zoom)
+                                updater.intValue++
+                            }
+                        }
+                    }
                 }
             }) {
             drawIntoCanvas {
@@ -221,6 +264,7 @@ fun Editor(editor: KPatchEditor) {
                 val canvas = it.nativeCanvas
                 val bounds = canvas.clipBounds
                 val clipPath = Path()
+                centroid = bounds.centerX().toFloat()
                 clipPath.addRoundRect(bounds.toRectF(), 24.dp.value, 24.dp.value, Path.Direction.CW)
                 canvas.withClip(clipPath) {
                     editor.draw(this, bounds)
