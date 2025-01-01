@@ -73,7 +73,7 @@ class MainActivity : ComponentActivity() {
         val kPatch = KPatch(bitmap) // 自动解析属性
         kPatch.chunks.delX = listOf(30..50)
         kPatch.chunks.delY = listOf(30..50)
-        //kPatch.chunks.bounds = Rect(10, 15, 480, 740)
+        kPatch.chunks.bounds = Rect(10, 15, 480, 740)
 
         /*
         // 加载普通图片
@@ -112,7 +112,7 @@ class MainActivity : ComponentActivity() {
                             if (showEditor.value) AlertDialog({ showEditor.value = false },
                                 title = { Text("编辑（开发中）") },
                                 text = {
-                                    Editor(remember { KPatchEditor(kPatch) })
+                                    Editor(remember { KPatchEditor(kPatch.export(false)) })
                                 },
                                 confirmButton = {
                                     Button({ showEditor.value = false }) {
@@ -220,8 +220,6 @@ class MainActivity : ComponentActivity() {
 fun Editor(editor: KPatchEditor) {
     val updater = remember { mutableIntStateOf(0) }
 
-    var centroid = 0f
-
     Box(Modifier.fillMaxWidth()) {
         Canvas(Modifier
             .fillMaxWidth()
@@ -264,7 +262,6 @@ fun Editor(editor: KPatchEditor) {
                 val canvas = it.nativeCanvas
                 val bounds = canvas.clipBounds
                 val clipPath = Path()
-                centroid = bounds.centerX().toFloat()
                 clipPath.addRoundRect(bounds.toRectF(), 24.dp.value, 24.dp.value, Path.Direction.CW)
                 canvas.withClip(clipPath) {
                     editor.draw(this, bounds)

@@ -130,8 +130,6 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
                 if (tidy && type == -1) continue
                 dstHeight += size
             }
-            dstWidth += 2
-            dstHeight += 2
         }
 
         val newBitmap = Bitmap.createBitmap(dstWidth, dstHeight, Bitmap.Config.ARGB_8888)
