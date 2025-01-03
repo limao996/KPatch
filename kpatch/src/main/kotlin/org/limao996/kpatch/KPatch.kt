@@ -104,45 +104,19 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
         })
     }
 
-    fun export(
-        tidy: Boolean = false// 是否整理
-    ): Bitmap {
-        val data = chunks.split(!tidy)
-        val (_, lineX, lineY) = data
-
-        var srcWidth = 0
-        var srcHeight = 0
-        var dstWidth = 0
-        var dstHeight = 0
-
-        CodeBlock("计算尺寸") {
-            for (pair in lineX) {
-                val (line, type) = pair
-                val size = line.last - line.first
-                srcWidth += size
-                if (tidy && type == -1) continue
-                dstWidth += size
-            }
-            for (pair in lineY) {
-                val (line, type) = pair
-                val size = line.last - line.first
-                srcHeight += size
-                if (tidy && type == -1) continue
-                dstHeight += size
-            }
-        }
-
+    fun export(tidy: Boolean = false): Bitmap {
+        if (tidy) return exportWithTidy()
+        val dstWidth = bitmap.width - if (isPatch) 2 else 0
+        val dstHeight = bitmap.height - if (isPatch) 2 else 0
         val newBitmap = Bitmap.createBitmap(dstWidth, dstHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(newBitmap)
 
-        val dst = Rect(1, 1, dstWidth - 2, dstHeight - 2)
-        val chunkList = chunks.fill(data, dst, 1f, !tidy)
+        val dst = Rect(1, 1, dstWidth - 1, dstHeight - 1)
 
         CodeBlock("填充") {
-            for (chunk in chunkList) {
-                if (tidy && chunk.type == -1) continue
-                canvas.drawBitmap(bitmap, chunk.src, chunk.dst!!, null)
-            }
+            val src = if (isPatch) Rect(1, 1, bitmap.width - 2, bitmap.height - 2)
+            else null
+            canvas.drawBitmap(bitmap, src, dst, null)
         }
 
         CodeBlock("边界") {
@@ -160,36 +134,9 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
         }
 
         CodeBlock("边距") {
-            var offsetX = 0
-            var offsetY = 0
-
-            CodeBlock("偏移", tidy) {
-                for (pair in lineX) {
-                    val (line, type) = pair
-                    if (type == -1) continue
-                    val size = line.last - line.first
-
-                    offsetX += size
-                    if (line.last >= chunks.padding.left) {
-                        offsetX -= line.last - chunks.padding.left
-                        break
-                    }
-                }
-                for (pair in lineY) {
-                    val (line, type) = pair
-                    if (type == -1) continue
-                    val size = line.last - line.first
-
-                    offsetY += size
-                    if (line.last >= chunks.padding.top) {
-                        offsetY -= line.last - chunks.padding.top
-                        break
-                    }
-                }
-            }
             val rect = Rect(
-                chunks.padding.left - offsetX - if (isPatch) 1 else 0,
-                chunks.padding.top - offsetY - if (isPatch) 1 else 0,
+                chunks.padding.left - if (isPatch) 1 else 0,
+                chunks.padding.top - if (isPatch) 1 else 0,
                 dstWidth - (bitmap.width - chunks.padding.right) - 1,
                 dstHeight - (bitmap.height - chunks.padding.bottom) - 1
             )
@@ -203,29 +150,165 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
         }
 
         CodeBlock("切割") {
-            var offsetX = 0
-            for (pair in lineX) {
-                val (line, type) = pair
-                if (tidy && type == -1) continue
-                val size = line.last - line.first
-
-                if (type != 0) {
-                    for (x in offsetX..offsetX + size) {
-                        newBitmap.setPixel(x, 0, if (type == -1) Color.RED else Color.BLACK)
-                    }
+            for (line in chunks.splitX) {
+                val first = line.first - if (isPatch) 1 else 0
+                val last = line.last - if (isPatch) 1 else 0
+                for (x in first..last) {
+                    newBitmap.setPixel(x, 0, Color.BLACK)
                 }
-
-                offsetX += size
             }
-            var offsetY = 0
-            for (pair in lineY) {
-                val (line, type) = pair
-                if (tidy && type == -1) continue
-                val size = line.last - line.first
-                if (type != 0) for (y in offsetY..offsetY + size) {
-                    newBitmap.setPixel(0, y, if (type == -1) Color.RED else Color.BLACK)
+
+            for (line in chunks.splitY) {
+                val first = line.first - if (isPatch) 1 else 0
+                val last = line.last - if (isPatch) 1 else 0
+                for (y in first..last) {
+                    newBitmap.setPixel(0, y, Color.BLACK)
                 }
-                offsetY += size
+            }
+
+            for (line in chunks.delX) {
+                val first = line.first - if (isPatch) 1 else 0
+                val last = line.last - if (isPatch) 1 else 0
+                for (x in first..last) {
+                    newBitmap.setPixel(x, 0, Color.RED)
+                }
+            }
+
+            for (line in chunks.delY) {
+                val first = line.first - if (isPatch) 1 else 0
+                val last = line.last - if (isPatch) 1 else 0
+                for (x in first..last) {
+                    newBitmap.setPixel(0, x, Color.RED)
+                }
+            }
+        }
+
+        return newBitmap
+    }
+
+    fun exportWithTidy(): Bitmap {
+        var width = chunks.bounds.width()
+        var height = chunks.bounds.height()
+
+        val delX = chunks.delX
+        val delY = chunks.delY
+        val splitX = ArrayList(chunks.splitX)
+        val splitY = ArrayList(chunks.splitY)
+        val padding = Rect(chunks.padding)
+        val bounds = Rect(chunks.bounds)
+
+        val lineX = ArrayList<Triple<IntRange, Int, Int>>()
+        val lineY = ArrayList<Triple<IntRange, Int, Int>>()
+
+        CodeBlock("计算") {
+            var offsetX = bounds.left - 1
+            var offsetY = bounds.top - 1
+
+            CodeBlock("合并排序") {
+                delX.forEachIndexed { index, line ->
+                    lineX.add(Triple(line, -1, index))
+                }
+                delY.forEachIndexed { index, line ->
+                    lineY.add(Triple(line, -1, index))
+                }
+                splitX.forEachIndexed { index, line ->
+                    lineX.add(Triple(line, 1, index))
+                }
+                splitY.forEachIndexed { index, line ->
+                    lineY.add(Triple(line, 1, index))
+                }
+
+                lineX.sortBy { it.first.first }
+                lineY.sortBy { it.first.first }
+            }
+
+            CodeBlock("重采样") {
+                for (triple in lineX) {
+                    val (line, type, index) = triple
+                    val first = line.first
+                    val last = line.last
+                    if (type == -1) {
+                        val size = last - first
+                        width -= size
+                        offsetX += size
+                        continue
+                    }
+                    splitX[index] = first - offsetX..last - offsetX
+                }
+
+                for (triple in lineY) {
+                    val (line, type, index) = triple
+                    val first = line.first
+                    val last = line.last
+                    if (type == -1) {
+                        val size = last - first
+                        height -= size
+                        offsetY += size
+                        continue
+                    }
+                    splitY[index] = first - offsetY..last - offsetY
+                }
+            }
+
+            width += 2
+            height += 2
+            bounds.set(1, 1, width - 2, height - 2)
+
+            CodeBlock("重载边距") {
+                padding.set(
+                    bounds.left + (bounds.width() * ((padding.left - chunks.bounds.left) / chunks.bounds.width()
+                        .toFloat())).toInt(),
+                    bounds.top + (bounds.height() * ((padding.top - chunks.bounds.top) / chunks.bounds.height()
+                        .toFloat())).toInt(),
+                    bounds.right - (bounds.width() * ((chunks.bounds.right - padding.right) / chunks.bounds.width()
+                        .toFloat())).toInt(),
+                    bounds.bottom - (bounds.height() * ((chunks.bounds.bottom - padding.bottom) / chunks.bounds.height()
+                        .toFloat())).toInt()
+                )
+            }
+
+        }
+        val newBitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(newBitmap)
+
+        CodeBlock("填充") {
+            draw(canvas, bounds)
+        }
+
+
+        CodeBlock("边界") {
+            newBitmap.setPixel(bounds.left, height - 1, Color.RED)
+            newBitmap.setPixel(bounds.right, height - 1, Color.RED)
+            newBitmap.setPixel(width - 1, bounds.top, Color.RED)
+            newBitmap.setPixel(width - 1, bounds.bottom, Color.RED)
+        }
+
+        CodeBlock("边距") {
+            log("padding: $padding")
+            for (x in padding.left..padding.right) {
+                newBitmap.setPixel(x, height - 1, Color.BLACK)
+            }
+            for (y in padding.top..padding.bottom) {
+                newBitmap.setPixel(width - 1, y, Color.BLACK)
+            }
+        }
+
+        CodeBlock("切割") {
+            for (line in splitX) {
+                val first = line.first
+                val last = line.last
+
+                for (x in first..last) {
+                    newBitmap.setPixel(x, 0, Color.BLACK)
+                }
+            }
+
+            for (line in splitY) {
+                val first = line.first
+                val last = line.last
+                for (y in first..last) {
+                    newBitmap.setPixel(0, y, Color.BLACK)
+                }
             }
         }
 

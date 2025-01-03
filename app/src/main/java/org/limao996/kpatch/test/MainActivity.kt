@@ -56,6 +56,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.limao996.kpatch.KPatch
+import org.limao996.kpatch.KPatchChunks
 import org.limao996.kpatch.drawKPatch
 import org.limao996.kpatch.editor.KPatchEditor
 import org.limao996.kpatch.log
@@ -76,19 +77,19 @@ class MainActivity : ComponentActivity() {
         kPatch.chunks.bounds = Rect(10, 15, 480, 740)
 
         /*
-        // 加载普通图片
-        val bitmap = BitmapFactory.decodeStream(assets.open("a.png"))
-        val kPatch = KPatch(
-            bitmap, KPatchChunks(
-                bounds = Rect(0, 0, 499, 749),
-                splitX = listOf(58..113, 387..438),
-                splitY = listOf(86..679),
-                delX = listOf(0..30),
-                delY = listOf(0..30),
-                padding = Rect(41, 77, 457, 704)
-            )
-        ) // 手动标注属性
-        */
+                // 加载普通图片
+                val bitmap = BitmapFactory.decodeStream(assets.open("a.png"))
+                val kPatch = KPatch(
+                    bitmap, KPatchChunks(
+                        bounds = Rect(0, 0, 499, 749),
+                        splitX = listOf(58..113, 387..438),
+                        splitY = listOf(86..679),
+                        delX = listOf(29..49),
+                        delY = listOf(29..49),
+                        padding = Rect(41, 77, 457, 704)
+                    )
+                ) // 手动标注属性
+                    */
 
         // val patchBitmap = kPatch.export() // 导出.9图片
 
@@ -232,7 +233,7 @@ fun Editor(editor: KPatchEditor) {
                             val event = awaitPointerEvent()
                             for (change in event.changes) {
                                 if (change.type == PointerType.Mouse) {
-                                    val delta = change.scrollDelta.y
+                                    val delta = max(min(1f, change.scrollDelta.y), -1f)
                                     if (delta != 0f) {
                                         val centroid = change.position
                                         val value = 1 - (0.1f * delta)
