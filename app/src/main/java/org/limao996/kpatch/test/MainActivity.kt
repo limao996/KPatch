@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
         // 加载.9图片
         val bitmap = BitmapFactory.decodeStream(assets.open("a.9.png"))
         val kPatch = KPatch(bitmap) // 自动解析属性
-        kPatch.chunks.delX = listOf(30..50)
+        kPatch.chunks.delX = listOf(20..40)
         kPatch.chunks.delY = listOf(30..50)
         kPatch.chunks.bounds = Rect(10, 15, 480, 740)
 
@@ -109,11 +109,11 @@ class MainActivity : ComponentActivity() {
                             val width = remember { mutableIntStateOf(800) }
                             val height = remember { mutableIntStateOf(1000) }
 
-                            val showEditor = remember { mutableStateOf(true) }
+                            val showEditor = remember { mutableStateOf(false) }
                             if (showEditor.value) AlertDialog({ showEditor.value = false },
                                 title = { Text("编辑（开发中）") },
                                 text = {
-                                    Editor(remember { KPatchEditor(kPatch.export(false)) })
+                                    Editor(remember { KPatchEditor(kPatch) })
                                 },
                                 confirmButton = {
                                     Button({ showEditor.value = false }) {

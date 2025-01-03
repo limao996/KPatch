@@ -18,6 +18,7 @@ import org.limao996.kpatch.KPatch.Companion.TYPE_INNER
 import org.limao996.kpatch.KPatch.Companion.TYPE_OUTER_X
 import org.limao996.kpatch.KPatch.Companion.TYPE_OUTER_Y
 import org.limao996.kpatch.KPatchChunks
+import org.limao996.kpatch.log
 import kotlin.math.max
 import kotlin.math.min
 
@@ -147,7 +148,6 @@ open class KPatchEditor(val kPatch: KPatch) {
                     for (chunk in chunkList) {
                         val dst = chunk.dst!!.toRectF()
                         val paint = paints[CHUNK_TYPE_MAP[chunk.type]]!!
-
                         canvas.drawRect(dst, paint)
                     }
 

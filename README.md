@@ -15,6 +15,11 @@ KPatch是基于Kotlin的.9patch图片绘制库。
 - [x] 导出.9patch图片
 - [ ] 支持完整特性的编辑器
 
+## 规则
+
+- 删除块不能与填充块重叠
+- 内容区域不能超过边界，也不能进入删除块
+
 ## 截图
 
 ![](https://github.com/limao996/KPatch/blob/main/img.jpg)

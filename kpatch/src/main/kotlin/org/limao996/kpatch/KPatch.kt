@@ -255,16 +255,71 @@ class KPatch(val bitmap: Bitmap, val chunks: KPatchChunks, val isPatch: Boolean 
             bounds.set(1, 1, width - 2, height - 2)
 
             CodeBlock("重载边距") {
-                padding.set(
-                    bounds.left + (bounds.width() * ((padding.left - chunks.bounds.left) / chunks.bounds.width()
-                        .toFloat())).toInt(),
-                    bounds.top + (bounds.height() * ((padding.top - chunks.bounds.top) / chunks.bounds.height()
-                        .toFloat())).toInt(),
-                    bounds.right - (bounds.width() * ((chunks.bounds.right - padding.right) / chunks.bounds.width()
-                        .toFloat())).toInt(),
-                    bounds.bottom - (bounds.height() * ((chunks.bounds.bottom - padding.bottom) / chunks.bounds.height()
-                        .toFloat())).toInt()
-                )
+                CodeBlock("X轴") {
+                    var last = chunks.bounds.left
+                    for (pair in lineX) {
+                        val (line, _, index) = pair
+
+                        if (last < line.first) {
+                            val a = last
+                            val b = line.first
+                            if (a <= padding.left && padding.left <= b) {
+                                padding.left = splitX[index].first + (padding.left - a)
+                            } else if (a <= padding.right && padding.right <= b) {
+                                padding.right = splitX[index].last - (b - padding.right)
+                            }
+                        }
+                        val a = line.first
+                        val b = line.last
+                        if (a <= padding.left && padding.left <= b) {
+                            padding.left = splitX[index].first + (padding.left - a)
+                        } else if (a <= padding.right && padding.right <= b) {
+                            padding.right = splitX[index].last - (b - padding.right)
+                        }
+                        last = line.last
+                    }
+                    if (last < chunks.bounds.right) {
+                        val a = last
+                        val b = chunks.bounds.right
+                        if (a <= padding.left && padding.left <= b) {
+                            padding.left = bounds.left + (padding.left - a)
+                        } else if (a <= padding.right && padding.right <= b) {
+                            padding.right = bounds.right - (b - padding.right)
+                        }
+                    }
+                }
+                CodeBlock("Y轴") {
+                    var last = chunks.bounds.top
+                    for (pair in lineY) {
+                        val (line, _, index) = pair
+                        if (last < line.first) {
+                            val a = last
+                            val b = line.first
+                            if (a <= padding.top && padding.top <= b) {
+                                padding.top = splitY[index].first + (padding.top - a)
+                            } else if (a <= padding.bottom && padding.bottom <= b) {
+                                padding.bottom = splitY[index].last - (b - padding.bottom)
+                            }
+                        }
+                        val a = line.first
+                        val b = line.last
+                        if (a <= padding.top && padding.top <= b) {
+                            padding.top = splitY[index].first + (padding.top - a)
+                        } else if (a <= padding.bottom && padding.bottom <= b) {
+                            padding.bottom = splitY[index].last - (b - padding.bottom)
+                        }
+                        last = line.last
+                    }
+                    if (last < chunks.bounds.bottom) {
+                        val a = last
+                        val b = chunks.bounds.bottom
+                        if (a <= padding.top && padding.top <= b) {
+                            padding.top = bounds.top + (padding.top - a)
+                        } else if (a <= padding.bottom && padding.bottom <= b) {
+                            padding.bottom = bounds.bottom - (b - padding.bottom)
+                        }
+                    }
+                }
             }
 
         }
