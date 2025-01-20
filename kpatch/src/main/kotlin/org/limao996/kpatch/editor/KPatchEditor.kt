@@ -1,13 +1,20 @@
 package org.limao996.kpatch.editor
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Rect
+import android.graphics.RectF
 import android.text.TextPaint
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
 import androidx.core.graphics.toRectF
+import androidx.core.graphics.withClip
 import androidx.core.graphics.withScale
 import androidx.core.graphics.withTranslation
 import org.limao996.kpatch.CodeBlock
@@ -73,12 +80,13 @@ open class KPatchEditor(val kPatch: KPatch) {
         offsetY = centroidY - newRelativeY
     }
 
-
+    open var backgroundColor = 0x10000000.toInt()
     open fun drawBackground(canvas: Canvas, bounds: Rect) {
-        canvas.drawColor(0x10000000.toInt())
+        // 填充灰色
+        canvas.drawColor(backgroundColor)
     }
 
-    open val paints = mapOf(
+    open var paints = mapOf(
         "chunk_inner" to Paint().apply {
             color = 0x300000ff
             style = Paint.Style.FILL
@@ -96,7 +104,7 @@ open class KPatchEditor(val kPatch: KPatch) {
             style = Paint.Style.FILL
         },
         "chunk_fixed" to Paint().apply {
-            color = 0x30ff7f00
+            color = 0x30FF00FF
             style = Paint.Style.FILL
         },
         "split_expand" to TextPaint().apply {
@@ -125,7 +133,252 @@ open class KPatchEditor(val kPatch: KPatch) {
             textSize = 4f
             pathEffect = DashPathEffect(floatArrayOf(5f, 5f), 0f)
         },
+        "chunk_padding" to Paint().apply {
+            color = Color.argb(0x30, 0, 179, 255)
+            style = Paint.Style.FILL
+        },
+        "ruler_container" to Paint().apply {
+            color = 0xffcccccc.toInt()
+            setShadowLayer(12f, 0f, 0f, 0x50000000.toInt())
+        },
+        "ruler_body" to Paint().apply {
+            color = Color.WHITE
+        },
+        "ruler_slider" to Paint().apply {
+            setShadowLayer(4f, 0f, 0f, 0x50000000.toInt())
+        },
     )
+
+    open var rulerWidth = 36f
+
+    open fun drawRulerSlider(
+        canvas: Canvas, containerRect: Rect, range: IntRange, rectPaint: Paint, sliderColor: Int
+    ) {
+        val isHorizontal = containerRect.width() > containerRect.height()
+        val rect = if (isHorizontal) RectF(
+            offsetX!! + (range.first * scale!!),
+            containerRect.top.toFloat(),
+            offsetX!! + (range.last * scale!!),
+            containerRect.bottom.toFloat(),
+        )
+        else RectF(
+            containerRect.left.toFloat(),
+            offsetY!! + (range.first * scale!!),
+            containerRect.right.toFloat(),
+            offsetY!! + (range.last * scale!!),
+        )
+        canvas.drawRect(rect, rectPaint)
+
+        CodeBlock("滑块") {
+            val paint = paints["ruler_slider"]!!
+            paint.color = sliderColor
+
+            val sliderWidth = rulerWidth / 3
+            val sliderRound = sliderWidth / 2
+            val sliderStartRect = if (isHorizontal) RectF(
+                rect.left - (sliderWidth / 2),
+                rect.top,
+                rect.left + (sliderWidth / 2),
+                rect.bottom,
+            )
+            else RectF(
+                rect.left,
+                rect.top - (sliderWidth / 2),
+                rect.right,
+                rect.top + (sliderWidth / 2),
+            )
+            val sliderEndRect = if (isHorizontal) RectF(
+                rect.right - (sliderWidth / 2),
+                rect.top,
+                rect.right + (sliderWidth / 2),
+                rect.bottom,
+            )
+            else RectF(
+                rect.left,
+                rect.bottom - (sliderWidth / 2),
+                rect.right,
+                rect.bottom + (sliderWidth / 2),
+            )
+            canvas.drawRoundRect(
+                sliderStartRect, sliderRound, sliderRound, paint
+            )
+            canvas.drawRoundRect(
+                sliderEndRect, sliderRound, sliderRound, paint
+            )
+        }
+    }
+
+    open fun drawRuler(canvas: Canvas, bounds: Rect) {
+        val bitmap = kPatch.bitmap
+        val chunks = kPatch.chunks
+
+        val containerRects = object {
+            val left = Rect(
+                bounds.left, bounds.top, bounds.left + rulerWidth.toInt(), bounds.bottom
+            )
+            val top = Rect(
+                bounds.left, bounds.top, bounds.right, bounds.top + rulerWidth.toInt()
+            )
+            val right = Rect(
+                bounds.right, bounds.top, bounds.right - rulerWidth.toInt(), bounds.bottom
+            )
+            val bottom = Rect(
+                bounds.left, bounds.bottom, bounds.right, bounds.bottom - rulerWidth.toInt()
+            )
+        }
+        Path().apply {
+            addRect(containerRects.left.toRectF(), Path.Direction.CW)
+            addRect(containerRects.top.toRectF(), Path.Direction.CW)
+            addRect(containerRects.right.toRectF(), Path.Direction.CCW)
+            addRect(containerRects.bottom.toRectF(), Path.Direction.CCW)
+            canvas.drawPath(this, paints["ruler_container"]!!)
+        }
+
+
+        CodeBlock("左侧") {
+            val containerRect = containerRects.left
+
+            val bodyRect = RectF(
+                containerRect.left.toFloat(),
+                offsetY!!,
+                containerRect.right.toFloat(),
+                (offsetY!! + ((bitmap.height - 1) * scale!!)),
+            )
+            // 主体
+            val bodyRound = rulerWidth / 6
+            canvas.drawRoundRect(bodyRect, bodyRound, bodyRound, paints["ruler_body"]!!)
+
+            CodeBlock("标注") {
+                for (line in chunks.delY) {
+                    drawRulerSlider(
+                        canvas,
+                        containerRect,
+                        line,
+                        paints["chunk_del"]!!,
+                        paints["split_remove"]!!.color
+                    )
+                }
+                for (line in chunks.splitY) {
+                    drawRulerSlider(
+                        canvas,
+                        containerRect,
+                        line,
+                        paints["chunk_inner"]!!,
+                        paints["split_expand"]!!.color
+                    )
+                }
+            }
+        }
+        CodeBlock("上侧") {
+            val containerRect = containerRects.top
+
+            val bodyRect = RectF(
+                offsetX!!,
+                containerRect.top.toFloat(),
+                (offsetX!! + ((bitmap.width - 1) * scale!!)),
+                containerRect.bottom.toFloat(),
+            )
+            // 主体
+            val bodyRound = rulerWidth / 6
+            canvas.drawRoundRect(bodyRect, bodyRound, bodyRound, paints["ruler_body"]!!)
+
+            CodeBlock("标注") {
+
+                for (line in chunks.delX) {
+                    drawRulerSlider(
+                        canvas,
+                        containerRect,
+                        line,
+                        paints["chunk_del"]!!,
+                        paints["split_remove"]!!.color
+                    )
+                }
+                for (line in chunks.splitX) {
+                    drawRulerSlider(
+                        canvas,
+                        containerRect,
+                        line,
+                        paints["chunk_inner"]!!,
+                        paints["split_expand"]!!.color
+                    )
+                }
+            }
+        }
+        CodeBlock("右侧") {
+            val containerRect = containerRects.right
+
+            val bodyRect = RectF(
+                containerRect.left.toFloat(),
+                offsetY!!,
+                containerRect.right.toFloat(),
+                (offsetY!! + ((bitmap.height - 1) * scale!!)),
+            )
+            // 主体
+            val bodyRound = rulerWidth / 6
+            canvas.drawRoundRect(bodyRect, bodyRound, bodyRound, paints["ruler_body"]!!)
+
+            CodeBlock("标注") {
+                // 边界
+                drawRulerSlider(
+                    canvas,
+                    containerRect,
+                    chunks.bounds.top..chunks.bounds.bottom,
+                    paints["chunk_fixed"]!!,
+                    paints["bounds"]!!.color
+                )
+
+                // 边距
+                drawRulerSlider(
+                    canvas,
+                    containerRect,
+                    chunks.padding.top..chunks.padding.bottom,
+                    paints["chunk_padding"]!!,
+                    paints["padding"]!!.color
+                )
+            }
+        }
+        CodeBlock("下侧") {
+            val containerRect = containerRects.bottom
+
+            val bodyRect = RectF(
+                offsetX!!,
+                containerRect.top.toFloat(),
+                (offsetX!! + ((bitmap.width - 1) * scale!!)),
+                containerRect.bottom.toFloat(),
+            )
+            // 主体
+            val bodyRound = rulerWidth / 6
+            canvas.drawRoundRect(bodyRect, bodyRound, bodyRound, paints["ruler_body"]!!)
+
+
+            CodeBlock("标注") {
+                // 边界
+                drawRulerSlider(
+                    canvas,
+                    containerRect,
+                    chunks.bounds.left..chunks.bounds.right,
+                    paints["chunk_fixed"]!!,
+                    paints["bounds"]!!.color
+                )
+
+                // 边距
+                drawRulerSlider(
+                    canvas,
+                    containerRect,
+                    chunks.padding.left..chunks.padding.right,
+                    paints["chunk_padding"]!!,
+                    paints["padding"]!!.color
+                )
+            }
+        }
+
+    }
+
+
+    open fun drawUi(canvas: Canvas, bounds: Rect) {
+        // 绘制标尺
+        drawRuler(canvas, bounds)
+    }
 
     open fun drawBody(canvas: Canvas, bounds: Rect) {
         val bitmap = kPatch.bitmap
@@ -348,8 +601,12 @@ open class KPatchEditor(val kPatch: KPatch) {
         offsetX = offsetX ?: (bounds.centerX() - (bitmap.width * scale!! / 2f))
         offsetY = offsetY ?: (bounds.centerY() - (bitmap.height * scale!! / 2f))
 
+        // 绘制背景
         drawBackground(canvas, bounds)
+        // 绘制主体
         drawBody(canvas, bounds)
+        // 绘制UI
+        drawUi(canvas, bounds)
     }
 
 }

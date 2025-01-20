@@ -4,6 +4,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Path
 import android.graphics.Rect
 import android.os.Bundle
+import android.view.ViewDebug
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -49,6 +50,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toRectF
 import androidx.core.graphics.withClip
+import androidx.core.util.toHalf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
